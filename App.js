@@ -1,66 +1,72 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  SafeAreaView, 
-  ActivityIndicator, 
-  Platform, 
-  StatusBar, 
+import React, { useRef, useState, useEffect } from "react";
+import {
+  StyleSheet,
+  SafeAreaView,
+  ActivityIndicator,
+  Platform,
+  StatusBar,
   BackHandler,
   View,
   Text,
   TouchableOpacity,
-  Image
-} from 'react-native';
-import { WebView } from 'react-native-webview';
-import NetInfo from '@react-native-community/netinfo';
+  Image,
+} from "react-native";
+import { WebView } from "react-native-webview";
+import NetInfo from "@react-native-community/netinfo";
 
-const APP_URL = process.env.EXPO_PUBLIC_APP_URL || "https://shopify.com"; 
+const APP_URL = process.env.EXPO_PUBLIC_APP_URL || "https://shopify.com";
 
 export default function App() {
   const webViewRef = useRef(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0); // Used to force-reload the WebView system
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Use a ref to store the real-time back status, bypassing stale state closures
+  const canGoBackRef = useRef(false);
+
+  // Keep the ref strictly synchronized whenever state variables update
+  useEffect(() => {
+    canGoBackRef.current = canGoBack;
+  }, [canGoBack]);
 
   // 1. Monitor Internet Connectivity Changes
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
-      // Handle instances where state is null or undefined gracefully
+    const unsubscribe = NetInfo.addEventListener((state) => {
       setIsConnected(state.isConnected !== false);
     });
-
     return () => unsubscribe();
   }, []);
 
-  // 2. Handle Android Hardware Back Button
+  // 2. Fixed Android Hardware Back Button Hook Matrix
   useEffect(() => {
     const handleBackPress = () => {
-      if (canGoBack && webViewRef.current) {
+      // Check the live ref state instead of the frozen closure variable
+      if (canGoBackRef.current && webViewRef.current) {
         webViewRef.current.goBack();
-        return true; 
+        return true; // Keeps the app open and navigates back in WebView history
       }
-      return false; 
+      return false; // Safely exits the app if no history remains
     };
 
-    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+    BackHandler.addEventListener("hardwareBackPress", handleBackPress);
     return () => {
-      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+      BackHandler.removeEventListener("hardwareBackPress", handleBackPress);
     };
-  }, [canGoBack]);
+  }, []); // Empty dependency array keeps this listener registered exactly once
 
   // 3. Retry Button Trigger action
   const handleRetry = async () => {
     const state = await NetInfo.fetch();
     if (state.isConnected) {
       setIsConnected(true);
-      // Incrementing key forces the WebView layout component to completely remount
-      setRefreshKey(prev => prev + 1);
+      setRefreshKey((prev) => prev + 1);
     }
   };
 
   const IndicatorLoadingView = () => (
     <ActivityIndicator
-      color="#000000" 
+      color="#000000"
       size="large"
       style={styles.indicatorStyle}
     />
@@ -68,11 +74,15 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeAreaContainer}>
-      <StatusBar barStyle="dark-content" hidden={false} backgroundColor="#FFFFFF" />  
+      <StatusBar
+        barStyle="dark-content"
+        hidden={false}
+        backgroundColor="#FFFFFF"
+      />
       <View style={styles.androidStatusBarSpacer} />
 
       {isConnected ? (
-        <WebView 
+        <WebView
           key={refreshKey}
           ref={webViewRef}
           style={styles.webViewContainer}
@@ -91,15 +101,17 @@ export default function App() {
         /* Minimalist Neutral Theme Offline Page Screen Mapping Blueprint */
         <View style={styles.offlineContainer}>
           {/* Pulls your existing local adaptive app logo asset smoothly */}
-          <Image 
-            source={require('./assets/adaptive-icon.png')} 
-              style={[styles.appIcon, { tintColor: '#000000', opacity: 1 }]}
+          <Image
+            source={require("./assets/splash-icon.png")}
+            style={[styles.appIcon, { tintColor: "#000000", opacity: 1 }]}
             resizeMode="contain"
           />
-          
+
           <Text style={styles.offlineTitle}>You are offline</Text>
-          <Text style={styles.offlineSubtitle}>Please check your connection and try again.</Text>
-          
+          <Text style={styles.offlineSubtitle}>
+            Please check your connection and try again.
+          </Text>
+
           <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
@@ -112,15 +124,15 @@ export default function App() {
 const styles = StyleSheet.create({
   safeAreaContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF', 
+    backgroundColor: "#FFFFFF",
   },
   androidStatusBarSpacer: {
-    // height: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-    backgroundColor: '#FFFFFF', 
+    height: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    backgroundColor: "#FFFFFF",
   },
   webViewContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF', 
+    backgroundColor: "#FFFFFF",
   },
   indicatorStyle: {
     position: "absolute",
@@ -130,52 +142,52 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: '#F4F4F4' 
+    backgroundColor: "#F4F4F4",
   },
   /* Offline UI Theme Layout Blocks */
   offlineContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // Premium pure white background canvas
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#FFFFFF", // Premium pure white background canvas
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 30,
   },
   appIcon: {
     width: 150,
     height: 150,
     marginBottom: 24,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   offlineTitle: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#000000', // Sharp Shopify-style solid black header text
+    fontWeight: "700",
+    color: "#000000", // Sharp Shopify-style solid black header text
     marginBottom: 8,
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-medium'
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Helvetica Neue" : "sans-serif-medium",
   },
   offlineSubtitle: {
     fontSize: 14,
-    color: '#666666', // Subtle neutral grey font body text color
-    textAlign: 'center',
+    color: "#666666", // Subtle neutral grey font body text color
+    textAlign: "center",
     marginBottom: 32,
     lineHeight: 20,
   },
   retryButton: {
-    backgroundColor: '#000000', // Solid black call-to-action block button
+    backgroundColor: "#000000", // Solid black call-to-action block button
     paddingVertical: 14,
     paddingHorizontal: 48,
     borderRadius: 4, // Clean minimal square corner curvature feel
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.15,
     shadowRadius: 2,
   },
   retryButtonText: {
-    color: '#FFFFFF', // High-contrast clean white primary button text typography
+    color: "#FFFFFF", // High-contrast clean white primary button text typography
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.5,
-  }
+  },
 });
